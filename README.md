@@ -206,4 +206,5 @@ class MyObject {
         }
     }
 ```
-That's it ! your `listOfObjects` now is grouped and customized as it is , as you wish ! And take advantage of your reduce block to do whatever you want
+That's it ! your `listOfObjects` now is grouped and customized as it is , as you wish ! And take advantage of your reduce block to do whatever you want.
+Done
