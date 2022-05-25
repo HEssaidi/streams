@@ -1,20 +1,71 @@
-# streams
+# Streams GroupBy Reduce java 8
 
-I'm trying to customize my collection stream using groupedBy and reduce, I have a list of objects that I need to be grouped in case of similar status.
-
-We have class Object
+Purpose : to group objects having `status` equal to my `customizedStatus` to a single customized one with `count` = `sumOfSameObjectsCount` <br/>
+Input : 
 ```
-class Object {
+[
+                        {
+                            "id": 1,
+                            "name": "nameXX",
+                            "status": "statusXX",
+                            "count": 1
+                        },
+                        {
+                            "id": 2,
+                            "name": "nameYY",
+                            "status": "statusYY",
+                            "count": 2
+                        },
+                        {
+                            "id": 3,
+                            "name": "nameZZ",
+                            "status": "customizedStatus",
+                            "count": 8
+                        },
+                        {
+                            "id": 4,
+                            "name": "nameZY",
+                            "status": "customizedStatus",
+                            "count": 2
+                        }
+                    ]
+```
+Expected output : 
+```
+[
+                        {
+                            "id": 1,
+                            "name": "nameXX",
+                            "status": "statusXX",
+                            "count": 1
+                        },
+                        {
+                            "id": 2,
+                            "name": "nameYY",
+                            "status": "statusYY",
+                            "count": 2
+                        },
+                        {
+                            "id": customizedId,
+                            "name": "customizedName",
+                            "status": "customizedStatus",
+                            "count": 10
+                        }
+                    ]
+```
+We have class MyObject : 
+```
+class MyObject {
+   Integer id;
+   String name;
    String status;
-   String status_label;
-   String status_id;
    Long count;
    //constructor with attributes
    //getters 
    //setters
 } 
 ```
-stream list preparing peace 
+Suggested stream list preparing peace 
 ```
 listOfObjects.stream()
 		.collect(Collectors.groupingBy(Object::getStatus))
@@ -22,193 +73,137 @@ listOfObjects.stream()
 		.map(e -> e.getValue().stream()
 				.reduce((partialResult,nextElem) -> 
 					{
-						LOGGER.info("ahaaaa! inside your reduce block ");
+						System.out.println("ahaaaa! inside your reduce block ");
 						if(partialResult.getStatus().equals(customizedStatus)) {
-              LOGGER.info("in case of tobeaproved status");
+              System.out.println("in case of tobeaproved status");
 							return new Object(customizedId, customizedName, customizedStatus, partialResult.getCount()+nextElem.getCount());
 						} else {
-              LOGGER.info("in case of ! tobeaproved status");
+              System.out.println("in case of ! tobeaproved status");
 							return new Object(partialResult.getId(), partialResult.getName(), partialResult.getStatus(), partialResult.getCount());
 						}
 					}
 				)
-			)
+			)	
 		.collect(Collectors.toList());
  ```
-1. Things work like a charm in case if there are objects with status in common.<br/>
-Input : 
+
+1. With this solution, things work like a charm in case there are ***multiple objects*** with `status` equal to `customizedStatus`, means in case of `groupingBy` groups entries by `customizedStatus` -***reduce is executed***- <br/>
+As a result, entries with `status` equal to `customizedStatus` are being customized. 
+2. In case of list entries are diffrent by `status`, we have 2 problems : <br/>
+	- Reduce would be skipped in case of `groupingBy` doesn't group by `status`. <br/>
+	- Reduce is not skipped, but doesn't return all the objects. <br/>
+
+Are we missing something !! **True**, the missing piece is the **Identity** [reduce documentation](https://www.baeldung.com/java-stream-reduce)
+> Identity – an element that is the initial value of the reduction operation and the default result if the stream is empty <br/>
+
+For that solution would to initialize first our reduce and keep iterating over the map ! <br/> 
+
 ```
-[
-                        {
-                            "status": "processed",
-                            "status_label": "Processed",
-                            "status_id": 63,
-                            "count": 33
-                        },
-                        {
-                            "status": "tobecompleted",
-                            "status_label": "To be completed",
-                            "status_id": 50,
-                            "count": 2095
-                        },
-                        {
-                            "status": "entryinprogress",
-                            "status_label": "To be completed",
-                            "status_id": 58,
-                            "count": 8
-                        },
-                        {
-                            "status": "tobesent",
-                            "status_label": "To be sent by client",
-                            "status_id": 52,
-                            "count": 33
-                        },
-                        {
-                            "status": "transferredtoagency",
-                            "status_label": "To be processed by supplier",
-                            "status_id": 54,
-                            "count": 60
-                        },
-                        {
-                            "status": "tobeapproved",
-                            "status_label": "To be approved",
-                            "status_id": 51,
-                            "count": 70
-                        }
-                        {
-                            "status": "tobeapproved",
-                            "status_label": "To be approved 3",
-                            "status_id": 65,
-                            "count": 15
-                        }
-                    ]
+public static MyObject getIdentity(Map.Entry<String, List<MyObject>> entry) {
+        
+    return entry.getKey().equals(customizedStatus) ?
+            new MyObject(customizedId, customizedName, customizedStatus, 0L) :
+            entry.getValue().iterator().next();
+    }
+    
+    public static MyObject accumulate(MyObject result, MyObject next) {
+        
+    return result.getStatus().equals(customizedStatus) ?
+            new MyObject(customizedId, customizedName, customizedStatus, result.getCount() + next.getCount()) :
+            new MyObject(result.getId(), result.getName(), result.getStatus(), result.getCount());
+    }
 ```
-Output : 
-![image](https://user-images.githubusercontent.com/59615955/169663496-82bc2661-f0b6-4364-a21a-534077a37926.png)
-As you can see, reduce is executed after logging out the other entries with no status in common.<br/>
-Entries with status in common are being customized with the new status label and count. 
+You can play around with this [Online Demo](https://www.jdoodle.com/ia/r9U) <br/>
 ```
-[
-                        {
-                            "status": "processed",
-                            "status_label": "Processed",
-                            "status_id": 63,
-                            "count": 33
-                        },
-                        {
-                            "status": "tobecompleted",
-                            "status_label": "To be completed",
-                            "status_id": 50,
-                            "count": 2095
-                        },
-                        {
-                            "status": "entryinprogress",
-                            "status_label": "To be completed",
-                            "status_id": 58,
-                            "count": 8
-                        },
-                        {
-                            "status": "tobesent",
-                            "status_label": "To be sent by client",
-                            "status_id": 52,
-                            "count": 33
-                        },
-                        {
-                            "status": "transferredtoagency",
-                            "status_label": "To be processed by supplier",
-                            "status_id": 54,
-                            "count": 60
-                        },
-                        {
-                            "status": "tobeapproved",
-                            "status_label": "To be approved",
-                            "status_id": 51,
-                            "count": 85
-                        }
-                    ]
-```		    
-2. In case of list entries are diffrent by status.<br/>
-Input : 
+import java.util.*;
+import java.util.stream.Collectors;
+
+
+public class MyClass {
+    
+     static Integer customizedId = 99;
+         static String customizedName = "customizedName";
+         static String customizedStatus = "customizedStatus";
+        
+        
+    public static void main(String[] args) {
+    List<MyObject> listOfObjects =
+        List.of(new MyObject(1, "nameXX", "statusXX", 1L),
+                new MyObject(2, "nameYY", "statusYY", 1L),
+                new MyObject(12, "nameZZz", "customizedStatus", 3L),
+                new MyObject(12, "nameZZAZE", "customizedStatus", 3L)
+                );
+    
+    List<MyObject> result =
+        listOfObjects.stream()
+            .collect(Collectors.groupingBy(MyObject::getStatus))
+            .entrySet().stream()
+            .map(e -> e.getValue().stream()
+                .reduce(getIdentity(e), (partialResult, nextElem) -> accumulate(partialResult, nextElem)) )
+            .collect(Collectors.toList());
+        
+    result.forEach(System.out::println);
+    
+    
+
+}
+
+public static MyObject getIdentity(Map.Entry<String, List<MyObject>> entry) {
+        
+    return entry.getKey().equals(customizedStatus) ?
+            new MyObject(customizedId, customizedName, customizedStatus, 0L) :
+            entry.getValue().iterator().next();
+    }
+    
+    public static MyObject accumulate(MyObject result, MyObject next) {
+        
+    return result.getStatus().equals(customizedStatus) ?
+            new MyObject(customizedId, customizedName, customizedStatus, result.getCount() + next.getCount()) :
+            new MyObject(result.getId(), result.getName(), result.getStatus(), result.getCount());
+    }
+
+
+}
+
+
+class MyObject {
+        Integer id;
+        String name;
+        String status;
+        Long count;
+    
+        public MyObject(Integer id, String name, String status, Long count) {
+            this.id = id;
+            this.name = name;
+            this.status = status;
+            this.count = count;
+        }
+    
+        public Integer getId() {
+            return id;
+        }
+    
+        public String getName() {
+            return name;
+        }
+    
+        public String getStatus() {
+            return status;
+        }
+    
+        public Long getCount() {
+            return count;
+        }
+    
+        @Override
+        public String toString() {
+            return "MyObject{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", status='" + status + '\'' +
+                ", count=" + count +
+                '}';
+        }
+    }
 ```
-[
-                        {
-                            "status": "processed",
-                            "status_label": "Processed",
-                            "status_id": 63,
-                            "count": 33
-                        },
-                        {
-                            "status": "tobecompleted",
-                            "status_label": "To be completed",
-                            "status_id": 50,
-                            "count": 2095
-                        },
-                        {
-                            "status": "entryinprogress",
-                            "status_label": "To be completed",
-                            "status_id": 58,
-                            "count": 8
-                        },
-                        {
-                            "status": "tobesent",
-                            "status_label": "To be sent by client",
-                            "status_id": 52,
-                            "count": 33
-                        },
-                        {
-                            "status": "transferredtoagency",
-                            "status_label": "To be processed by supplier",
-                            "status_id": 54,
-                            "count": 60
-                        },
-                        {
-                            "status": "tobeapproved",
-                            "status_label": "To be approved 3",
-                            "status_id": 65,
-                            "count": 15
-                        }
-                    ]
-```
-![image](https://user-images.githubusercontent.com/59615955/169663910-d3fbb6bd-1d5a-44e4-8c0d-c2402b56fdd0.png)
-As you can see reduce block is being skipped ! our object that needs to be customized unfortunately it is not ! we still have it with the old status label; <br/>
-Output :
-```
-[
-                        {
-                            "status": "processed",
-                            "status_label": "Processed",
-                            "status_id": 63,
-                            "count": 33
-                        },
-                        {
-                            "status": "tobecompleted",
-                            "status_label": "To be completed",
-                            "status_id": 50,
-                            "count": 2095
-                        },
-                        {
-                            "status": "entryinprogress",
-                            "status_label": "To be completed",
-                            "status_id": 58,
-                            "count": 8
-                        },
-                        {
-                            "status": "tobesent",
-                            "status_label": "To be sent by client",
-                            "status_id": 52,
-                            "count": 33
-                        },
-                        {
-                            "status": "transferredtoagency",
-                            "status_label": "To be processed by supplier",
-                            "status_id": 54,
-                            "count": 60
-                        },
-                        {
-                            "status": "tobeapproved",
-                            "status_label": "To be approved 3",
-                            "status_id": 65,
-                            "count": 15
-                        }
-                    ]
-```
+That's it ! your `listOfObjects` now is grouped and customized as it is , as you wish !
